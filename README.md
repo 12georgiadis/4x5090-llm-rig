@@ -14,6 +14,28 @@ I'm a filmmaker working with local AI inference and creative research. Cloud GPU
 
 The answer: **4x RTX 5090** (128 GB total VRAM) on an open-air frame, built incrementally with parts I already had from previous builds and some smart sourcing.
 
+### The Model Architecture Behind This Build
+
+Running frontier models locally is largely a moot point — Claude 4, GPT-5, and Gemini Ultra aren't open-source and won't run on any consumer hardware. The right mental model is a three-tier stack:
+
+```
+Tier 1 — Frontier APIs (Claude / GPT / Gemini)
+  → Complex reasoning, one-off creative tasks, production pipelines
+  → Routed via LiteLLM — same endpoint, swap model with one config line
+
+Tier 2 — Local open-source frontier-equivalent (Qwen3 70B, Llama 4 Scout, Kimi K2.5 distills)
+  → This rig. Daily agentic tasks, Hermes Agent workflows, research queries
+  → Zero API cost, no rate limits, no data leaving the network, always warm
+
+Tier 3 — Local distilled / small models (Qwen3 8B, Gemma 4 9B, DeepSeek-R1 7B)
+  → Background agents, structured extraction, classification, summarization
+  → Runs on one GPU, other cards free for Tier 2 or ComfyUI simultaneously
+```
+
+**Why not just use APIs for everything?** At the query volume of daily agentic pipelines (hundreds of requests/day for research, shot analysis, document processing), API costs accumulate fast. The rig's break-even against API pricing is under 12 months of regular use. After that, every query is electricity-cost only (~€0.001/query at €0.22/kWh).
+
+**LiteLLM as the glue:** A single local LiteLLM proxy exposes all tiers under one OpenAI-compatible endpoint. Hermes Agent, Claude Code, or any other framework sends requests to `http://localhost:4000` and doesn't know — or care — whether the response came from a local Qwen3 or a remote Claude API.
+
 ---
 
 ## Full Parts List
