@@ -464,40 +464,56 @@ Key features: 40+ built-in tools, subagents for parallel workstreams, session me
 
 ### What Can 128 GB VRAM Run?
 
-| Model | Quantization | VRAM Usage | Fits? | Single-GPU tok/s |
-|-------|-------------|------------|-------|-----------------|
-| Qwen3 8B | BF16 | ~16 GB | Yes (1 GPU) | ~145 tok/s |
-| Qwen3 32B | Q4_K_M | ~18 GB | Yes (1 GPU, fast) | ~51 tok/s |
-| Qwen3 32B | BF16 | ~64 GB | Yes (2 GPUs) | ~30-35 tok/s |
-| Qwen3 30B A3B MoE | Q4 | ~18 GB | Yes (1 GPU) | ~110 tok/s |
-| Hermes 3 70B | Q4_K_M | ~42 GB | Yes (2 GPUs) | ~45 tok/s (TP×2) |
-| Llama 3.3 70B | Q4_K_M | ~42 GB | Yes (2 GPUs) | ~80-120 tok/s (TP×4) |
-| Llama 3.3 70B | Q8_0 | ~75 GB | Yes (3 GPUs) | ~50-70 tok/s (TP×4) |
-| Gemma 4 27B | Q4 | ~15 GB | Yes (1 GPU) | ~60 tok/s |
-| DeepSeek-V3 distill 32B | Q4 | ~18 GB | Yes (1 GPU) | ~50 tok/s |
-| DeepSeek-V4 distill ~33B *(late April 2026)* | Q4 | ~18 GB | Yes (1 GPU) | ~50 tok/s (estimated) |
-| DeepSeek-V3 full | Q4 | ~200 GB | Partial (CPU offload) | ~8-15 tok/s |
-| Llama 3.1 405B | Q4_K_M | ~230 GB | Partial (CPU offload) | ~10-15 tok/s |
-| LTX Video 2 | — | ~27-32 GB | Yes (1 dedicated GPU) | see video section |
-| Any 7-14B model | Q4-Q8 | 4-9 GB | Yes (1 GPU, headroom for batches) | 100-200+ tok/s |
+> Models change faster than hardware. Table reflects **April 2026** — check [lmarena.ai](https://lmarena.ai) for the current leaderboard.
+
+| Model | Quantization | VRAM | Fits? | tok/s (TP across 4 GPUs) |
+|-------|-------------|------|-------|--------------------------|
+| Any 7-14B (Gemma 4 9B, Qwen3 8B, DS-R1-7B…) | Q4-BF16 | 4-16 GB | 1 GPU, fast | 100-200+ tok/s |
+| Qwen3 32B | Q4_K_M | ~18 GB | 1 GPU | ~51 tok/s (single) |
+| Qwen3 32B | BF16 | ~64 GB | 2 GPUs | ~30-35 tok/s |
+| Qwen3 30B A3B MoE | Q4 | ~18 GB | 1 GPU | ~110 tok/s (single) |
+| Gemma 4 27B | Q4 | ~15 GB | 1 GPU | ~60 tok/s (single) |
+| DeepSeek-R1 distill 32B | Q4 | ~18 GB | 1 GPU | ~50 tok/s (single) |
+| DeepSeek-V4 distill ~33B *(late April 2026)* | Q4 | ~18 GB | 1 GPU | ~50 tok/s (estimated) |
+| Kimi K2.5 / GLM-4.7 / MiniMax M2.5 (200B+ MoE) | Q2-Q4 | 60-100 GB | 2-4 GPUs | ~20-40 tok/s |
+| **Llama 4 Scout** (109B MoE, 17B active) | Q4 | ~55 GB | 2 GPUs | ~60-80 tok/s |
+| **Llama 4 Maverick** (400B MoE, 17B active) | Q4 | ~200 GB | Partial CPU offload | ~8-15 tok/s |
+| DeepSeek-V3 full (671B) | Q4 | ~200 GB | Partial CPU offload | ~8-15 tok/s |
+| WanVideo 2.2 14B | FP8 | ~40 GB | 1 dedicated GPU | see video section |
+| LTX Video 2.3 22B | FP8 | ~32 GB | 1 dedicated GPU | see video section |
+
+**Why 192 GB DDR5 matters for the large models:** When a model like Llama 4 Maverick or DeepSeek-V3 full spills beyond 128 GB VRAM, the overflow layers run on CPU RAM. With 192 GB DDR5-6000, the fallback is fast enough (~8-15 tok/s) to be usable. On a machine with 32-64 GB RAM, the same overflow drops to 2-3 tok/s.
 
 The sweet spot is **70B Q5-Q8** models — they run entirely in VRAM across 2-4 GPUs with fast inference.
 
 ### Image/Video Generation (ComfyUI)
 
+**ComfyUI v0.16.1+** — Dynamic VRAM enabled by default. Update before anything else.
+
+**Current models (April 2026):**
+
+| Model | Type | VRAM (FP8/quant) | Notes |
+|-------|------|-----------------|-------|
+| Flux.2 Dev/Schnell | Image | ~12-16 GB | NVFP4 = 3× faster than FP16 on 5090 |
+| Stable Diffusion 3.5 | Image | ~10-14 GB | Good for high-res, less VRAM than Flux.2 |
+| WanVideo 2.2 (14B) | Video | ~40 GB FP8, ~20 GB (720p) | Best open-source video motion quality |
+| WanVideo 2.2 (5B) | Video | ~8-16 GB | Faster, lighter, still good |
+| LTX Video 2.3 (22B) | Video + Audio | ~32 GB+ (official), ~12-24 GB FP8 | Generates audio + video simultaneously |
+
 ```bash
-# ComfyUI v0.16.1+ (Dynamic VRAM enabled by default — update before anything else)
-# Flux.2: NVFP4 = 3× faster than FP16, FP8 = 2× faster. Use fp8_e4m3fn_fast on 5090.
-# LTX Video 2: requires Gemma 3 12B text encoder (~24-27 GB VRAM).
-#   On a single 5090 (32GB), use --reserve-vram 5 and memory management nodes.
-#   On 4×5090 you can dedicate one card to LTX-2 and keep the others for LLM.
-#   With VRAM management nodes, LTX-2 can generate 800+ frames at 1920×1088.
+# 4×5090 multi-workflow layout:
+#   GPU 0: WanVideo 2.2 14B (FP8, ~40 GB) — dedicated video card
+#   GPU 1-2: Qwen3 70B / Llama 4 Scout inference (tensor parallel, ~55 GB)
+#   GPU 3: Flux.2 image batches + SD 3.5 / LoRA training
 #
-# 4×5090: each card handles a different workflow simultaneously:
-#   GPU 0: LTX-2 video generation
-#   GPU 1-2: Qwen3 70B inference (tensor parallel)
-#   GPU 3: Flux.2 image batches / LoRA training
+# ComfyUI selects GPU via CUDA_VISIBLE_DEVICES:
+CUDA_VISIBLE_DEVICES=0 python -m main --port 8188  # video node
+CUDA_VISIBLE_DEVICES=3 python -m main --port 8189  # image node
 ```
+
+**LTX Video 2.3 note:** The 22B model officially needs 32GB+. A single RTX 5090 (32GB) runs it at FP8 with `--reserve-vram 5`. With the [VRAM management nodes](https://github.com/RandomInternetPreson/ComfyUI_LTX-2_VRAM_Memory_Management), peak consumption drops ~10×, enabling 800+ frames at 1920×1088 on one card.
+
+**WanVideo 2.2 note:** The 14B model at FP8 needs ~40 GB — dedicate GPU 0 to it. The 5B variant fits in one card (24-32 GB) with good results.
 
 ### Monitoring
 
@@ -663,6 +679,18 @@ On paper this covers 70B inference. In practice:
 - **CUDA feature lag** — NVIDIA is deprioritizing Ampere (30-series) for new cuDNN, Flash Attention 3, and NVFP4 kernels. vLLM and ComfyUI optimizations target Ada (40-series) and Blackwell (50-series) first
 - **Same power draw for half the performance** — a 3090 pulls ~350W; 4× = 1,400W for ~35-45 tok/s vs. the 5090 rig's 80-120 tok/s
 
+**Electricity cost (France, ~€0.22/kWh, 8h/day use):**
+
+| Config | Peak draw | 8h/day monthly | Cost/month |
+|--------|-----------|----------------|------------|
+| 4× RTX 3090 | ~1,400W + system | ~370 kWh | ~€81 |
+| 4× RTX 5090 full | ~2,580W + system | ~620 kWh | ~€136 |
+| 4× RTX 5090 undervolted (460W) | ~1,960W | ~470 kWh | ~€103 |
+| DGX Spark | ~200W | ~48 kWh | ~€11 |
+| Mac Studio M4 Ultra | ~75W | ~18 kWh | ~€4 |
+
+The 3090 rig draws nearly as much as the 5090 rig for roughly half the inference speed. The "cheap" hardware isn't cheap to run.
+
 *Verdict: great if your total budget is €5,000. Wrong choice for a dedicated prosumer rig built to last 4 years.*
 
 **2× or 4× RTX 4090**
@@ -686,6 +714,17 @@ This specific combo gets asked about constantly. It doesn't work:
 - **Total cost: ~€4,000+** for a system where the 5090 contributes zero compute
 
 *Verdict: does not work. The Mac Mini M4 is excellent as a control plane / always-on API router using MLX or llama.cpp Metal — but that is a different machine role, not a GPU compute node. The 5090 belongs on a Windows or Linux machine.*
+
+**Apple Silicon bandwidth & memory — not all M-chips are equal:**
+
+| Chip | Unified Memory BW | Max Memory | Best for |
+|------|-------------------|------------|---------|
+| M1 Max | 400 GB/s | 64 GB | Small 7-13B models, light inference |
+| M4 Max | 410 GB/s | 128 GB | Up to ~34B BF16, limited 70B |
+| M1 Ultra | 800 GB/s | 128 GB | 70B comfortable |
+| M4 Ultra | 819 GB/s | 192 GB | 70B+ comfortable, 405B partial |
+
+M1 and M4 are **not** equivalent — M4 Ultra (819 GB/s, 192 GB) is 2× faster than M4 Max (410 GB/s) for inference. An M4 Max Mac Studio is often compared incorrectly with the M4 Ultra Mac Studio — they're different class machines. Always confirm which chip when comparing benchmarks.
 
 **Mac Studio M4 Ultra (192 GB unified)**
 
