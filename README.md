@@ -36,6 +36,68 @@ Tier 3 — Local distilled / small models (Qwen3 8B, Gemma 4 9B, DeepSeek-R1 7B)
 
 **LiteLLM as the glue:** A single local LiteLLM proxy exposes all tiers under one OpenAI-compatible endpoint. Hermes Agent, Claude Code, or any other framework sends requests to `http://localhost:4000` and doesn't know — or care — whether the response came from a local Qwen3 or a remote Claude API.
 
+### Nothing Replaces Anything — The Full Fallback Chain
+
+These tiers are **complementary, not substitutes**. When one layer goes down, the next one catches you. The 4×5090 rig is the final layer that never goes down.
+
+```
+Claude Code / Anthropic API
+  ↓ if down or rate-limited
+AWS Bedrock (same Claude model, different infrastructure)
+  ↓ if Bedrock is also unavailable
+DeepSeek V4 API (or OpenRouter → any frontier model)
+  ↓ if all commercial APIs fail or cost matters
+Local open-source full model — Qwen3 70B, Llama 4 Scout (Tier 2, this rig)
+  ↓ if full model is busy or task is routine
+Local distilled model — DeepSeek-R1 7B, Qwen3 8B in turbo-quant (Tier 3, single GPU)
+```
+
+**LiteLLM handles this automatically** with `fallbacks` and `model_list` routing:
+
+```yaml
+# litellm_config.yaml
+model_list:
+  - model_name: primary
+    litellm_params:
+      model: anthropic/claude-opus-4-6
+      fallbacks: [bedrock/claude-opus-4-6, deepseek/deepseek-chat, ollama/qwen3:72b]
+
+  - model_name: agent-daily  # Hermes Agent background tasks
+    litellm_params:
+      model: ollama/qwen3:32b  # local Tier 2
+      fallbacks: [deepseek/deepseek-chat]
+
+  - model_name: agent-fast   # routine extraction/classification
+    litellm_params:
+      model: ollama/qwen3:8b  # local Tier 3, turbo-quant
+```
+
+The result: any agent framework hitting `http://localhost:4000` gets automatic failover without code changes. Claude Code down? Invisible. Anthropic and Bedrock both down simultaneously? The rig serves the same request locally. **The local hardware is the only node with 100% uptime in this chain.**
+
+### Token Routing Strategy — Cost, Latency, Resilience
+
+Never route all traffic to one provider. The optimal strategy distributes workload based on task complexity, volume, and latency requirements:
+
+| Task type | Route to | Why |
+|-----------|----------|-----|
+| Single complex creative decision | Claude API (Tier 1) | Needs frontier reasoning, low volume |
+| Research synthesis, document analysis | Local Qwen3 70B (Tier 2) | High volume, no data leaves the machine |
+| Agent tool calls, structured extraction | Local Qwen3 8B turbo-quant (Tier 3) | 100-200 tok/s, €0 marginal cost |
+| Code generation (critical path) | Claude API → fallback local | Quality matters, fallback if API down |
+| Background indexing, classification | Local only (Tier 3) | High volume, routine, no internet needed |
+| Privacy-sensitive content | Context-dependent | Depends on data type, jurisdiction, and workflow — local for maximum control, but not a blanket rule |
+
+**Offline-first principle:** any agent workflow that can run locally, should run locally. Internet goes down — the rig keeps working. API rate limit hit — the rig absorbs the overflow. The cloud is the upgrade path, not the dependency.
+
+**Practical token distribution (example daily pipeline):**
+- ~10% of queries go to Tier 1 (frontier API) — the expensive, irreplaceable ones
+- ~40% go to Tier 2 (local 70B+) — quality close to frontier, zero API cost
+- ~50% go to Tier 3 (local distilled) — fast, cheap, background tasks
+
+Result: API costs drop by 80-90% vs. routing everything to Claude/GPT, while maintaining frontier quality for the tasks that actually need it.
+
+> **On privacy:** "sensitive" is context-dependent — what matters is the data type, the jurisdiction, and who needs access. Local gives maximum control. API gives maximum capability. The right answer changes per project, per client, per country. Be open to both, and let the routing config be the policy.
+
 ---
 
 ## Full Parts List
