@@ -8,7 +8,7 @@ I'm a filmmaker working with local AI inference and creative research. Cloud GPU
 
 - Run **70B+ parameter models** quantized (GGUF Q4/Q5) at interactive speeds as a persistent agentic inference server
 - Power **ComfyUI workflows** for Flux.2 and LTX Video 2 (which requires up to 27 GB VRAM for its text encoder alone)
-- Serve as a local backend for **Claude Code and agentic pipelines** (Hermes 3, Qwen3, DeepSeek distills) — always-on, no queue, no API cost
+- Serve as a local backend for **Claude Code and agentic pipelines** (Hermes Agent, Tier 2/3 open-source models) — always-on, no queue, no API cost
 - Handle **multi-model inference** via vLLM or llama.cpp with tensor parallelism across all 4 GPUs
 - Serve the whole **Tailscale network** as a private LLM/image/video API node
 
@@ -23,11 +23,11 @@ Tier 1 — Frontier APIs (Claude / GPT / Gemini)
   → Complex reasoning, one-off creative tasks, production pipelines
   → Routed via LiteLLM — same endpoint, swap model with one config line
 
-Tier 2 — Local open-source frontier-equivalent (Qwen3 70B, Llama 4 Scout, Kimi K2.5 distills)
+Tier 2 — Local open-source frontier-equivalent (70B+ dense, 200B+ MoE at Q4-Q5)
   → This rig. Daily agentic tasks, Hermes Agent workflows, research queries
   → Zero API cost, no rate limits, no data leaving the network, always warm
 
-Tier 3 — Local distilled / small models (Qwen3 8B, Gemma 4 9B, DeepSeek-R1 7B)
+Tier 3 — Local distilled / small models (7-32B, turbo-quant)
   → Background agents, structured extraction, classification, summarization
   → Runs on one GPU, other cards free for Tier 2 or ComfyUI simultaneously
 ```
@@ -47,9 +47,9 @@ AWS Bedrock (same Claude model, different infrastructure)
   ↓ if Bedrock is also unavailable
 DeepSeek V4 API (or OpenRouter → any frontier model)
   ↓ if all commercial APIs fail or cost matters
-Local open-source full model — Qwen3 70B, Llama 4 Scout (Tier 2, this rig)
+Local open-source full model — Tier 2 (70B+ model, check leaderboard — this rig)
   ↓ if full model is busy or task is routine
-Local distilled model — DeepSeek-R1 7B, Qwen3 8B in turbo-quant (Tier 3, single GPU)
+Local distilled model — Tier 3 (7-14B turbo-quant, single GPU)
 ```
 
 **LiteLLM handles this automatically** with `fallbacks` and `model_list` routing:
@@ -81,8 +81,8 @@ Never route all traffic to one provider. The optimal strategy distributes worklo
 | Task type | Route to | Why |
 |-----------|----------|-----|
 | Single complex creative decision | Claude API (Tier 1) | Needs frontier reasoning, low volume |
-| Research synthesis, document analysis | Local Qwen3 70B (Tier 2) | High volume, no data leaves the machine |
-| Agent tool calls, structured extraction | Local Qwen3 8B turbo-quant (Tier 3) | 100-200 tok/s, €0 marginal cost |
+| Research synthesis, document analysis | Local Tier 2 (70B+) | High volume, no data leaves the machine |
+| Agent tool calls, structured extraction | Local Tier 3 (7-14B turbo-quant) | 100-200 tok/s, €0 marginal cost |
 | Code generation (critical path) | Claude API → fallback local | Quality matters, fallback if API down |
 | Background indexing, classification | Local only (Tier 3) | High volume, routine, no internet needed |
 | Privacy-sensitive content | Context-dependent | Depends on data type, jurisdiction, and workflow — local for maximum control, but not a blanket rule |
@@ -255,7 +255,7 @@ llama.cpp and vLLM both support weighted tensor splitting. Give more model layer
 
 # vLLM: uses tensor parallelism automatically
 # Less fine-grained control, but handles asymmetry reasonably well
-vllm serve meta-llama/Llama-3.1-70B-Instruct \
+vllm serve <current-70B-model-from-leaderboard> \
   --tensor-parallel-size 4 \
   --gpu-memory-utilization 0.90
 ```
@@ -321,7 +321,7 @@ nvidia-smi -q | grep -A 5 "PCI"
 
 # Stress test: sustained inference for 24h
 # (use your actual workload, not synthetic benchmarks)
-ollama run llama3.1:70b-instruct-q4_K_M
+ollama run <your-70B-model>:q4_K_M
 
 # Monitor thermals during stress
 watch -n 1 nvidia-smi
@@ -507,7 +507,7 @@ ollama run qwen3:32b          # fits in 1 GPU
 ollama run qwen3:72b-q4_K_M   # spans 2-3 GPUs automatically
 
 # vLLM (best for concurrent requests + tensor parallelism)
-vllm serve NousResearch/Hermes-3-Llama-3.1-70B-Instruct \
+vllm serve <current-Tier2-model-from-leaderboard> \
   --tensor-parallel-size 4 \
   --gpu-memory-utilization 0.90
 
@@ -544,7 +544,7 @@ hermes config set model qwen3:32b
 hermes run "analyze all images in ~/shots/ and create a shot list"
 ```
 
-Key features: 40+ built-in tools, subagents for parallel workstreams, session memory, 30-min socket timeout for large-context local inference. The Hermes 3 70B model underneath is fine-tuned for structured function calling (`<tool_call>` / `<tool_response>` format) — more reliable than base Llama for agent tasks.
+Key features: 40+ built-in tools, subagents for parallel workstreams, session memory, 30-min socket timeout for large-context local inference. The Hermes fine-tuned models underneath are trained for structured function calling (`<tool_call>` / `<tool_response>` format) — more reliable than base instruction models for agentic tasks.
 
 ### What Can 128 GB VRAM Run?
 
@@ -570,7 +570,7 @@ The hardware defines what tiers are reachable. The specific models in each tier 
 **Rule of thumb:** the model leaderboard rotates every 4-8 weeks. The tier structure doesn't. A Tier 2 card today runs whatever the Tier 2 model is in 18 months.
 
 
-**Why 192 GB DDR5 matters for the large models:** When a model like Llama 4 Maverick or DeepSeek-V3 full spills beyond 128 GB VRAM, the overflow layers run on CPU RAM. With 192 GB DDR5-6000, the fallback is fast enough (~8-15 tok/s) to be usable. On a machine with 32-64 GB RAM, the same overflow drops to 2-3 tok/s.
+**Why 192 GB DDR5 matters for the large models:** When a 200B+ MoE or 400B+ model spills beyond 128 GB VRAM, the overflow layers run on CPU RAM. With 192 GB DDR5-6000, the fallback is fast enough (~8-15 tok/s) to be usable. On a machine with 32-64 GB RAM, the same overflow drops to 2-3 tok/s.
 
 The sweet spot is **70B Q5-Q8** models — they run entirely in VRAM across 2-4 GPUs with fast inference.
 
@@ -591,7 +591,7 @@ The sweet spot is **70B Q5-Q8** models — they run entirely in VRAM across 2-4 
 ```bash
 # 4×5090 multi-workflow layout:
 #   GPU 0: WanVideo 2.2 14B (FP8, ~40 GB) — dedicated video card
-#   GPU 1-2: Qwen3 70B / Llama 4 Scout inference (tensor parallel, ~55 GB)
+#   GPU 1-2: Tier 2 model inference (70B tensor parallel, ~55 GB)
 #   GPU 3: Flux.2 image batches + SD 3.5 / LoRA training
 #
 # ComfyUI selects GPU via CUDA_VISIBLE_DEVICES:
@@ -634,7 +634,7 @@ Ollama or vLLM exposes an API on the Tailscale network, accessible from any mach
 ```bash
 # From MacBook, query the 4×5090 rig
 curl http://<rig-tailscale-ip>:11434/api/generate \
-  -d '{"model": "llama3.1:70b", "prompt": "..."}'
+  -d '{"model": "your-70b-model", "prompt": "..."}'
 ```
 
 ---
@@ -771,14 +771,17 @@ Based on comparable 4×5090 builds:
 
 | Workload | Expected Performance |
 |----------|---------------------|
-| Llama 3.1 70B Q4_K_M (single GPU) | ~35-45 tok/s |
-| Llama 3.1 70B Q4_K_M (4 GPU tensor parallel) | ~80-120 tok/s |
-| Llama 3.1 70B Q8 (4 GPU) | ~50-70 tok/s |
-| SDXL image generation | ~2-3 sec/image (512×512) |
-| Flux.1 image generation | ~5-8 sec/image |
-| LoRA training (SDXL) | ~4× faster than single GPU |
+| 70B Q4_K_M (Tier 2, single GPU — partial fit, some KV spill) | ~25-35 tok/s |
+| 70B Q4_K_M (Tier 2, 2-GPU tensor parallel) | ~50-70 tok/s |
+| 70B Q4_K_M (Tier 2, 4-GPU tensor parallel) | ~80-120 tok/s |
+| 70B Q8 (Tier 2, 4-GPU — no quant loss) | ~50-70 tok/s |
+| 7-14B Q4 (Tier 3, single GPU) | 150-250+ tok/s |
+| Flux.2 image generation (NVFP4 on 5090) | ~1-3 sec/image |
+| WanVideo 2.2 14B FP8 (dedicated GPU) | varies by resolution |
+| LTX Video 2.3 22B FP8 (single GPU + VRAM mgmt) | varies by length |
+| LoRA fine-tuning (QLoRA, 70B, 4-GPU) | ~4-6× vs. single GPU |
 
-These are rough estimates. Actual numbers depend on quantization, batch size, prompt length, KV cache, and software version.
+These are rough estimates. Actual numbers depend on quantization, batch size, prompt length, KV cache, and software version. For current per-model benchmarks check [artificialanalysis.ai](https://artificialanalysis.ai).
 
 ---
 
@@ -797,8 +800,8 @@ These are rough estimates. Actual numbers depend on quantization, batch size, pr
 | RTX 4090 × 1 | 24 GB | 1,008 GB/s | No | Yes | Yes | Partial (offload) | ~€1,500 |
 | RTX 4090 × 2 | 48 GB | 1,008 GB/s | Tight | Yes | Yes | Yes (1 card) | ~€3,000 |
 | RTX 4090 × 4 | 96 GB | 1,008 GB/s | Yes | Yes | Yes | Yes | ~€6,000 |
-| RTX 5090 × 1 | 32 GB | 1,792 GB/s | Partial (Q3 only) | Yes | Yes | Yes (tight) | ~€2,200 |
-| RTX 5090 × 2 | 64 GB | 1,792 GB/s | Yes (comfortable) | Yes | Yes | Yes | ~€4,400 |
+| RTX 5090 × 1 | 32 GB | 1,792 GB/s | Partial (Q3 only) | Yes | Yes | Yes (tight) | ~€4,100 |
+| RTX 5090 × 2 | 64 GB | 1,792 GB/s | Yes (comfortable) | Yes | Yes | Yes | ~€8,200 |
 | **RTX 5090 × 4 AM5 (this build)** | **128 GB** | **1,792 GB/s** | **Yes + headroom** | **Yes** | **Yes** | **Yes (dedicated GPU)** | **~€8,800** |
 | RTX 5090 × 4 Threadripper | 128 GB | 1,792 GB/s | Yes + headroom | Yes | Yes | Yes | ~€8,800 GPU + €4,500 platform |
 | Mac Mini M4 Pro (64 GB) | 64 GB unified | 273 GB/s | Partial (MLX only) | No | No (Metal only) | No (Metal only) | ~€1,800 |
@@ -880,10 +883,10 @@ M1 and M4 are **not** equivalent — M4 Ultra (819 GB/s, 192 GB) is 2× faster t
 
 The most legitimate alternative for one specific use case: running 405B models in silence.
 
-- **What it does uniquely well:** 192 GB unified memory at 819 GB/s, silent, 40W draw, runs Llama 3.1 405B Q4 entirely in memory, plug-and-play
+- **What it does uniquely well:** 192 GB unified memory at 819 GB/s, silent, 40W draw, runs 405B+ models Q4 entirely in memory, plug-and-play
 - **What it cannot do:**
   - No CUDA. No ComfyUI Flux.2, no LTX Video 2, no standard PyTorch LoRA training, no vLLM
-  - Apple MLX inference is maturing quickly but remains a subset of the CUDA ecosystem. Many models (Hermes 3, newer DeepSeek variants, specialized agents) have no optimized MLX path
+  - Apple MLX inference is maturing quickly but remains a subset of the CUDA ecosystem. Many current frontier-equivalent models and specialized agent fine-tunes have no optimized MLX path
   - ~30-40 tok/s on 70B Q4 via MLX vs. ~80-120 tok/s on the 4×5090. Unified memory bandwidth (819 GB/s) is lower per-slot than a single 5090 (1,792 GB/s)
   - At ~€5,999 you get one machine with no expansion path
 
@@ -992,6 +995,68 @@ Beyond cost, owning the hardware means:
 - **Full data privacy** — nothing leaves your network
 - **No API rate limits** — run as many requests as your GPUs can handle
 - **Experimentation freedom** — try weird models, custom quantizations, and bleeding-edge software without per-hour anxiety
+
+---
+
+---
+
+## Complementary Node: Mac Mini M5 Pro or Mac Studio M5
+
+The 4×5090 rig is a CUDA machine — loud, hot, power-hungry, and not always-on 24/7. A Mac Mini or Mac Studio M5 fills the gaps: silent, 35-80W, always-on, and capable of serious MLX inference for everything that doesn't need CUDA.
+
+### Rumored Specs — Mid-2026 (WWDC estimate)
+
+| Config | Unified Memory | Bandwidth | Est. Price | Sweet spot for |
+|--------|---------------|-----------|------------|----------------|
+| Mac Mini M5 (base) | 16-32 GB | 153 GB/s | ~€699 | Control plane only, 7-14B agents |
+| **Mac Mini M5 Pro 48 GB** | 48 GB | 307 GB/s | ~€1,600 | ★ Best value — 30B models, light 70B |
+| **Mac Mini M5 Pro 64 GB** | 64 GB | 307 GB/s | ~€2,100 | ★★ Sweet spot — 70B Q4 fits fully |
+| Mac Studio M5 Max 128 GB | 128 GB | 614 GB/s | ~€3,500 | Real 70B inference speed (~30-40 tok/s) |
+| Mac Studio M5 Ultra 256 GB | 256 GB | 1,100 GB/s | ~€6,500 | 405B+ fits, niche use case |
+
+> Specs are rumored — Apple hasn't announced Mac Mini M5 or Mac Studio M5 as of April 2026. Expected WWDC June 2026. [Current rumors](https://www.macworld.com/article/2964754/2026-mac-mini-m5-pro-design-specs-release-date.html).
+
+### The Recommendation
+
+**Start with Mac Mini M5 Pro 48 GB (~€1,600).**
+
+- 307 GB/s, 48 GB unified memory
+- Runs Qwen3 32B via MLX at ~25-35 tok/s — covers 90% of daily agent tasks
+- 70B Q4_K_M fits at 48 GB with minimal KV cache; slower (~12-18 tok/s) but functional for background tasks
+- Always-on at ~35W — the 5090 rig can sleep, the Mac Mini handles Hermes Agent calls overnight
+- M5 Pro adds Thunderbolt 5 and Wi-Fi 7
+
+If you find yourself needing 70B at real speed or 128B+ models on the Mac side: upgrade to Mac Studio M5 Max (128 GB, 614 GB/s). The Mac Mini M5 Pro is the entry point; the Studio is the upgrade path.
+
+**If budget allows from day one: Mac Studio M5 Max 128 GB** at ~€3,500 is genuinely a different machine — 614 GB/s means 70B Q8 entirely in unified memory at 30-40 tok/s. Comparable to the 4×5090 rig on pure 70B throughput (not faster, but silent and 80W).
+
+### Why Not Mac Studio M5 Ultra?
+
+The Ultra (256 GB, ~€6,500) is compelling only if you need 405B+ models locally. For everything else, the Max 128 GB gives 85% of the capability at 55% of the price. The Ultra is a statement purchase for 2026.
+
+### EXO: Pool Everything
+
+The real advantage emerges with [EXO](https://github.com/exolabs/exo): one framework that pools VRAM/unified memory across heterogeneous devices on your Tailscale network.
+
+```bash
+# Mac Mini M5 Pro: EXO node (MLX backend)
+exo --node-id mac-mini --backend mlx
+
+# 4×5090 rig: EXO node (CUDA backend)
+exo --node-id rig --backend cuda
+
+# From any machine: query the pooled cluster
+curl http://localhost:52415/v1/chat/completions   -d '{"model": "llama-3.1-405b", "messages": [...]}'
+# EXO distributes layers across both machines
+```
+
+**What you get from pooling:**
+- 128 GB VRAM (rig) + 48-64 GB unified memory (Mac Mini) = up to ~192 GB distributed
+- The Mac Mini handles MLX-native layers; the rig handles CUDA-optimized layers
+- Larger models become reachable without buying more GPUs
+- Each additional Mac you add later expands the pool
+
+Scale path: Mac Mini M5 Pro 48GB → add Mac Studio M5 Max → add second Mac Mini if needed. Each purchase expands distributed inference capacity without touching the CUDA rig.
 
 ---
 
