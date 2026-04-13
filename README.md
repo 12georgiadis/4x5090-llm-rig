@@ -548,28 +548,27 @@ Key features: 40+ built-in tools, subagents for parallel workstreams, session me
 
 ### What Can 128 GB VRAM Run?
 
-> ⚠️ **This table will be outdated within weeks.** Model names here are examples of capability tiers — not prescriptions. For what is actually current:
-> - [openrouter.ai/rankings](https://openrouter.ai/rankings) — real usage data, updated weekly
+> **Models change faster than hardware. Don't use this section as a shopping list.**
+> Check these instead — they're updated in real time:
+> - [openrouter.ai/rankings](https://openrouter.ai/rankings) — usage-weighted, what people actually run
 > - [lmarena.ai](https://lmarena.ai) — human preference ELO
 > - [artificialanalysis.ai](https://artificialanalysis.ai) — benchmark aggregator
-> 
-> The hardware does not change. The models do.
 
-| Model | Quantization | VRAM | Fits? | tok/s (TP across 4 GPUs) |
-|-------|-------------|------|-------|--------------------------|
-| Any 7-14B (Qwen3 8B, Gemma 4 9B, DS-R1-7B…) | Q4-BF16 | 4-16 GB | 1 GPU, fast | 100-200+ tok/s |
-| **Qwen3.6 Plus** *(#1 OpenRouter usage April 2026)* | Q4_K_M | ~18-36 GB | 1-2 GPUs | ~50-80 tok/s |
-| Qwen3 32B dense | Q4_K_M | ~18 GB | 1 GPU | ~51 tok/s (single) |
-| Qwen3 30B A3B MoE | Q4 | ~18 GB | 1 GPU | ~110 tok/s (single) |
-| DeepSeek V3.2 *(#2 OpenRouter)* | Q4 | ~18 GB (distill) | 1 GPU | ~50 tok/s (single) |
-| DeepSeek-V4 distill ~33B *(late April 2026, Apache 2.0)* | Q4 | ~18 GB | 1 GPU | ~50 tok/s (estimated) |
-| **MiniMax M2.7** *(SWE-Pro 56.2%, agentic SOTA)* | Q2-Q4 | ~60-80 GB | 2-3 GPUs | ~25-40 tok/s |
-| **MiniMax M2.5** *(SWE-Bench 80.2%)* | Q2-Q4 | ~60-80 GB | 2-3 GPUs | ~25-40 tok/s |
-| **Kimi K2.5** *(1T params, 32B active, #1 HLE)* | Q2 | ~80-100 GB | 3-4 GPUs | ~15-25 tok/s |
-| GLM-5.1 *(reasoning, #1 Intelligence Index, released April 7 2026)* | Q2-Q4 | ~60-100 GB | 2-4 GPUs | ~15-30 tok/s |
-| DeepSeek-V3 full (671B) | Q4 | ~200 GB | Partial CPU offload | ~8-15 tok/s |
-| WanVideo 2.2 14B | FP8 | ~40 GB | 1 dedicated GPU | see video section |
-| LTX Video 2.3 22B | FP8 | ~32 GB | 1 dedicated GPU | see video section |
+### What 128 GB VRAM Unlocks — By Tier
+
+The hardware defines what tiers are reachable. The specific models in each tier change constantly.
+
+| Tier | VRAM needed | What fits | Typical speed | Examples (April 2026 — verify current) |
+|------|------------|-----------|--------------|----------------------------------------|
+| **Tier 0 — Fast agents** | 4-18 GB (1 GPU) | 7B-32B dense or MoE | 50-200+ tok/s | Qwen3 8B, Gemma 4 9B, DeepSeek-R1 distill 7B |
+| **Tier 1 — Quality agents** | 18-40 GB (1-2 GPUs) | 30B-32B dense | 30-80 tok/s | Qwen3 32B, Qwen3.6 Plus variants, MiniMax distills |
+| **Tier 2 — Frontier-equivalent** | 40-80 GB (2-3 GPUs) | 70B dense, 200B+ MoE | 15-50 tok/s | Top open-weight models of the moment (check leaderboard) |
+| **Tier 3 — Max capacity** | 80-128 GB (3-4 GPUs) | 200B+ MoE at better quant | 10-30 tok/s | Kimi K2.5, GLM-5.1, MiniMax M2.7 at Q3-Q4 |
+| **Overflow (CPU)** | 128 GB VRAM + 192 GB DDR5 | 400B-670B partial offload | 5-15 tok/s | DeepSeek-V3 full, future 400B+ models |
+| **Video — 1 dedicated GPU** | 32-40 GB | LTX Video 2.3, WanVideo 2.2 14B | — | Fixed by model architecture, less volatile |
+
+**Rule of thumb:** the model leaderboard rotates every 4-8 weeks. The tier structure doesn't. A Tier 2 card today runs whatever the Tier 2 model is in 18 months.
+
 
 **Why 192 GB DDR5 matters for the large models:** When a model like Llama 4 Maverick or DeepSeek-V3 full spills beyond 128 GB VRAM, the overflow layers run on CPU RAM. With 192 GB DDR5-6000, the fallback is fast enough (~8-15 tok/s) to be usable. On a machine with 32-64 GB RAM, the same overflow drops to 2-3 tok/s.
 
