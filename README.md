@@ -4,12 +4,13 @@
 
 ## Why This Build
 
-I'm a filmmaker working with AI-generated imagery (LoRA training, Flux/Deforum/ComfyUI) and increasingly running large language models locally for creative research. Cloud GPU costs add up fast, and I needed a machine that could:
+I'm a filmmaker working with local AI inference and creative research. Cloud GPU costs add up fast, and I needed a machine that could:
 
-- Run **70B+ parameter models** quantized (GGUF Q4/Q5) at interactive speeds
-- Fine-tune LoRAs and run ComfyUI workflows with large batch sizes
-- Handle multi-model inference via vLLM or Ollama with tensor parallelism
-- Serve as a persistent local inference server accessible over my Tailscale network
+- Run **70B+ parameter models** quantized (GGUF Q4/Q5) at interactive speeds as a persistent agentic inference server
+- Power **ComfyUI workflows** for Flux.2 and LTX Video 2 (which requires up to 27 GB VRAM for its text encoder alone)
+- Serve as a local backend for **Claude Code and agentic pipelines** (Hermes 3, Qwen3, DeepSeek distills) — always-on, no queue, no API cost
+- Handle **multi-model inference** via vLLM or llama.cpp with tensor parallelism across all 4 GPUs
+- Serve the whole **Tailscale network** as a private LLM/image/video API node
 
 The answer: **4x RTX 5090** (128 GB total VRAM) on an open-air frame, built incrementally with parts I already had from previous builds and some smart sourcing.
 
@@ -432,24 +433,38 @@ vllm serve meta-llama/Llama-3.1-70B-Instruct \
 
 ### What Can 128 GB VRAM Run?
 
-| Model | Quantization | VRAM Usage | Fits? |
-|-------|-------------|------------|-------|
-| Llama 3.1 70B | Q4_K_M | ~42 GB | Yes (1 GPU spare) |
-| Llama 3.1 70B | Q8_0 | ~75 GB | Yes (across 3 GPUs) |
-| Llama 3.1 70B | FP16 | ~140 GB | No (need offload) |
-| Mixtral 8×22B | Q4_K_M | ~80 GB | Yes (across 3 GPUs) |
-| Llama 3.1 405B | Q4_K_M | ~230 GB | Partial (CPU offload) |
-| DeepSeek-V3 | Q4 | ~200 GB | Partial (CPU offload) |
-| Any 7-34B model | Q4-Q8 | 5-22 GB | Yes (single GPU) |
+| Model | Quantization | VRAM Usage | Fits? | Single-GPU tok/s |
+|-------|-------------|------------|-------|-----------------|
+| Qwen3 8B | BF16 | ~16 GB | Yes (1 GPU) | ~145 tok/s |
+| Qwen3 32B | Q4_K_M | ~18 GB | Yes (1 GPU, fast) | ~51 tok/s |
+| Qwen3 32B | BF16 | ~64 GB | Yes (2 GPUs) | ~30-35 tok/s |
+| Qwen3 30B A3B MoE | Q4 | ~18 GB | Yes (1 GPU) | ~110 tok/s |
+| Hermes 3 70B | Q4_K_M | ~42 GB | Yes (2 GPUs) | ~45 tok/s (TP×2) |
+| Llama 3.3 70B | Q4_K_M | ~42 GB | Yes (2 GPUs) | ~80-120 tok/s (TP×4) |
+| Llama 3.3 70B | Q8_0 | ~75 GB | Yes (3 GPUs) | ~50-70 tok/s (TP×4) |
+| Gemma 4 27B | Q4 | ~15 GB | Yes (1 GPU) | ~60 tok/s |
+| DeepSeek-V3 distill 32B | Q4 | ~18 GB | Yes (1 GPU) | ~50 tok/s |
+| DeepSeek-V3 full | Q4 | ~200 GB | Partial (CPU offload) | ~8-15 tok/s |
+| Llama 3.1 405B | Q4_K_M | ~230 GB | Partial (CPU offload) | ~10-15 tok/s |
+| LTX Video 2 | — | ~27-32 GB | Yes (1 dedicated GPU) | see video section |
+| Any 7-14B model | Q4-Q8 | 4-9 GB | Yes (1 GPU, headroom for batches) | 100-200+ tok/s |
 
 The sweet spot is **70B Q5-Q8** models — they run entirely in VRAM across 2-4 GPUs with fast inference.
 
-### Image/Video Generation
+### Image/Video Generation (ComfyUI)
 
 ```bash
-# ComfyUI (already configured on my Windows GPU machines)
-# 4×5090 = massive batch sizes, fast LoRA training
-# SDXL/Flux workflows run 4× faster than single GPU
+# ComfyUI v0.16.1+ (Dynamic VRAM enabled by default — update before anything else)
+# Flux.2: NVFP4 = 3× faster than FP16, FP8 = 2× faster. Use fp8_e4m3fn_fast on 5090.
+# LTX Video 2: requires Gemma 3 12B text encoder (~24-27 GB VRAM).
+#   On a single 5090 (32GB), use --reserve-vram 5 and memory management nodes.
+#   On 4×5090 you can dedicate one card to LTX-2 and keep the others for LLM.
+#   With VRAM management nodes, LTX-2 can generate 800+ frames at 1920×1088.
+#
+# 4×5090: each card handles a different workflow simultaneously:
+#   GPU 0: LTX-2 video generation
+#   GPU 1-2: Qwen3 70B inference (tensor parallel)
+#   GPU 3: Flux.2 image batches / LoRA training
 ```
 
 ### Monitoring
@@ -566,6 +581,120 @@ Based on comparable 4×5090 builds:
 | LoRA training (SDXL) | ~4× faster than single GPU |
 
 These are rough estimates. Actual numbers depend on quantization, batch size, prompt length, KV cache, and software version.
+
+---
+
+---
+
+## All Alternatives Compared
+
+> TL;DR: 4×RTX 5090 on AM5 is the only prosumer config that combines 128 GB CUDA VRAM, full CUDA ecosystem (ComfyUI/Flux.2/LTX-2/vLLM/PyTorch), and a break-even against cloud within 18 months. Every alternative fails on at least one of these criteria.
+
+### The Full Benchmark Matrix
+
+| Config | VRAM | BW/card | 70B Q4 fits? | CUDA | ComfyUI Flux.2 | LTX Video 2 | Est. GPU cost |
+|--------|------|---------|-------------|------|----------------|-------------|---------------|
+| RTX 3090 × 1 | 24 GB | 936 GB/s | No | Yes | Yes | Partial (offload) | ~€500 used |
+| RTX 3090 × 4 | 96 GB | 936 GB/s | Yes | Yes | Yes | Yes (1 card) | ~€2,000 used |
+| RTX 4090 × 1 | 24 GB | 1,008 GB/s | No | Yes | Yes | Partial (offload) | ~€1,500 |
+| RTX 4090 × 2 | 48 GB | 1,008 GB/s | Tight | Yes | Yes | Yes (1 card) | ~€3,000 |
+| RTX 4090 × 4 | 96 GB | 1,008 GB/s | Yes | Yes | Yes | Yes | ~€6,000 |
+| RTX 5090 × 1 | 32 GB | 1,792 GB/s | Partial (Q3 only) | Yes | Yes | Yes (tight) | ~€2,200 |
+| RTX 5090 × 2 | 64 GB | 1,792 GB/s | Yes (comfortable) | Yes | Yes | Yes | ~€4,400 |
+| **RTX 5090 × 4 AM5 (this build)** | **128 GB** | **1,792 GB/s** | **Yes + headroom** | **Yes** | **Yes** | **Yes (dedicated GPU)** | **~€8,800** |
+| RTX 5090 × 4 Threadripper | 128 GB | 1,792 GB/s | Yes + headroom | Yes | Yes | Yes | ~€8,800 GPU + €4,500 platform |
+| Mac Mini M4 Pro (64 GB) | 64 GB unified | 273 GB/s | Partial (MLX only) | No | No (Metal only) | No (Metal only) | ~€1,800 |
+| Mac Studio M4 Max (128 GB) | 128 GB unified | 410 GB/s | Yes (MLX only) | No | No | No | ~€3,800 |
+| Mac Studio M4 Ultra (192 GB) | 192 GB unified | 819 GB/s | Yes + 405B too | No | No | No | ~€5,999 |
+| Mac Mini M4 + eGPU 5090 | — | — | No (see below) | No | No | No | ~€4,000+ wasted |
+
+**Token/s on Qwen3 70B Q4_K_M (multi-GPU, tensor parallel):**
+
+| Config | Approx. tok/s | Notes |
+|--------|---------------|-------|
+| 4× RTX 3090 | ~35-45 | PCIe 3.0 bandwidth limits inter-GPU sync |
+| 2× RTX 4090 | ~35-50 | 48 GB fits, minimal KV cache headroom |
+| 4× RTX 4090 | ~55-75 | 96 GB, comfortable; aging bandwidth |
+| 2× RTX 5090 | ~55-75 | 64 GB, comfortable |
+| **4× RTX 5090 (this build)** | **~80-120** | **128 GB, full KV cache, optimal tensor split** |
+| Mac Studio M4 Ultra | ~30-40 | MLX only, no CUDA ecosystem |
+
+### Why Not Each Alternative
+
+**4× RTX 3090 (cheapest multi-GPU option, ~€2,000 total)**
+
+On paper this covers 70B inference. In practice:
+
+- **PCIe 3.0** throughout — inter-GPU communication is twice as slow as Gen4, and 4× slower than Gen5. Every tensor-parallel token sync pays that penalty
+- **936 GB/s bandwidth per card** vs. 1,792 GB/s on the 5090. Inference is pure memory bandwidth. You're paying half the speed
+- **LTX Video 2** barely runs with aggressive memory offloading. The Gemma 3 12B text encoder needs ~24-27 GB alone; on a 24 GB card, you're offloading the encoder to RAM every generation
+- **CUDA feature lag** — NVIDIA is deprioritizing Ampere (30-series) for new cuDNN, Flash Attention 3, and NVFP4 kernels. vLLM and ComfyUI optimizations target Ada (40-series) and Blackwell (50-series) first
+- **Same power draw for half the performance** — a 3090 pulls ~350W; 4× = 1,400W for ~35-45 tok/s vs. the 5090 rig's 80-120 tok/s
+
+*Verdict: great if your total budget is €5,000. Wrong choice for a dedicated prosumer rig built to last 4 years.*
+
+**2× or 4× RTX 4090**
+
+The most common recommendation in 2024. By mid-2026 the calculus has shifted:
+
+- **24 GB ceiling is real** — Qwen3 70B Q4_K_M needs ~40 GB. On 2× 4090 (48 GB), the model fits but you have almost no KV cache budget. Long contexts start spilling to RAM, speeds drop to ~8-15 tok/s
+- **LTX Video 2** fits on a single 4090 with memory management nodes, but barely. Any Flux.2 + LTX-2 simultaneous workflow exhausts VRAM on a 2-card system
+- **4× 4090 (96 GB)** is more compelling, but at ~€6,000 GPU cost vs. ~€8,800 for 4× 5090, the 32% extra spend buys 78% more bandwidth per card and 33% more VRAM. The 5090 is better value at the 4-card tier
+- **Street prices** — the 4090 has not dropped significantly despite the 5090 launch. You're paying near-5090 prices for Ada-gen bandwidth
+
+*Verdict: optimal for 1-2 card setups. Superseded at the 4-card tier by the 5090 on a pure value basis.*
+
+**Mac Mini M4 + eGPU RTX 5090**
+
+This specific combo gets asked about constantly. It doesn't work:
+
+- **macOS on Apple Silicon does not support CUDA on external GPUs, period.** The NVIDIA GPU connected via Thunderbolt would appear for display output in legacy Intel Mac configurations, but on Apple Silicon (M4), there is no external GPU compute support in macOS at all
+- **No CUDA = no PyTorch, no ComfyUI, no vLLM, no Flux.2, no LTX-2** in their standard forms. You'd need Metal-only alternatives for everything, which don't exist for the full creative stack in 2026
+- **Thunderbolt 4 bandwidth is ~5 GB/s effective** — even if CUDA worked, loading a 32 GB model would take minutes. Any framework that transfers tensors between CPU and eGPU would be crippled
+- **Total cost: ~€4,000+** for a system where the 5090 contributes zero compute
+
+*Verdict: does not work. The Mac Mini M4 is excellent as a control plane / always-on API router using MLX or llama.cpp Metal — but that is a different machine role, not a GPU compute node. The 5090 belongs on a Windows or Linux machine.*
+
+**Mac Studio M4 Ultra (192 GB unified)**
+
+The most legitimate alternative for one specific use case: running 405B models in silence.
+
+- **What it does uniquely well:** 192 GB unified memory at 819 GB/s, silent, 40W draw, runs Llama 3.1 405B Q4 entirely in memory, plug-and-play
+- **What it cannot do:**
+  - No CUDA. No ComfyUI Flux.2, no LTX Video 2, no standard PyTorch LoRA training, no vLLM
+  - Apple MLX inference is maturing quickly but remains a subset of the CUDA ecosystem. Many models (Hermes 3, newer DeepSeek variants, specialized agents) have no optimized MLX path
+  - ~30-40 tok/s on 70B Q4 via MLX vs. ~80-120 tok/s on the 4×5090. Unified memory bandwidth (819 GB/s) is lower per-slot than a single 5090 (1,792 GB/s)
+  - At ~€5,999 you get one machine with no expansion path
+
+*Verdict: right choice if your entire workflow is text inference via MLX and you need the largest possible context in silence. Wrong choice if any part of your workflow touches ComfyUI, Flux.2, LTX-2, or standard PyTorch.*
+
+**Threadripper PRO 7000 WRX90 + 4× RTX 5090**
+
+The proper professional platform. Covered in detail in the Architecture section.
+
+- **Full x16 PCIe 5.0 per GPU** — no bifurcation, no asymmetry
+- **+€3,500-4,500** over AM5 for CPU + WRX90 motherboard
+- **5-15% better throughput** for multi-GPU tensor parallelism
+- **Matters for training** — serious gradient synchronization across 4 cards needs the bandwidth
+- **Marginal for inference** — the bottleneck is within-GPU GDDR7 bandwidth (1.8 TB/s per card), not cross-GPU PCIe communication
+
+*Verdict: the right platform for a production training rig or commercial AI server. Overkill for inference + LoRA fine-tuning. The €3,500 saved funds the 4th 5090.*
+
+### The Decision Tree
+
+```
+Need CUDA (ComfyUI / Flux.2 / LTX-2 / vLLM / PyTorch)?
+├── No → Mac Studio M4 Ultra for 405B in silence
+└── Yes
+    ├── Budget < €8,000 total?
+    │   ├── < €5,000 → 2× RTX 5090 (your current Nomad/Torrent)
+    │   └── < €8,000 → 4× RTX 4090 if 5090 unavailable
+    └── Budget ≥ €15,000 (full build)?
+        ├── Inference-focused → 4× RTX 5090 on AM5 (this build)
+        └── Training-focused → 4× RTX 5090 on Threadripper WRX90
+```
+
+The 4× RTX 5090 on AM5 sits at the intersection of **maximum CUDA VRAM** and **minimum viable platform cost**. It is not the most elegant system — but it is the right one for the use case.
 
 ---
 
