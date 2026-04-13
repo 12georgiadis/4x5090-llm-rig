@@ -548,7 +548,12 @@ Key features: 40+ built-in tools, subagents for parallel workstreams, session me
 
 ### What Can 128 GB VRAM Run?
 
-> Models change faster than hardware. This table reflects **April 2026**. For the current leaderboard, check [openrouter.ai/rankings](https://openrouter.ai/rankings) and [lmarena.ai](https://lmarena.ai).
+> ⚠️ **This table will be outdated within weeks.** Model names here are examples of capability tiers — not prescriptions. For what is actually current:
+> - [openrouter.ai/rankings](https://openrouter.ai/rankings) — real usage data, updated weekly
+> - [lmarena.ai](https://lmarena.ai) — human preference ELO
+> - [artificialanalysis.ai](https://artificialanalysis.ai) — benchmark aggregator
+> 
+> The hardware does not change. The models do.
 
 | Model | Quantization | VRAM | Fits? | tok/s (TP across 4 GPUs) |
 |-------|-------------|------|-------|--------------------------|
@@ -561,7 +566,7 @@ Key features: 40+ built-in tools, subagents for parallel workstreams, session me
 | **MiniMax M2.7** *(SWE-Pro 56.2%, agentic SOTA)* | Q2-Q4 | ~60-80 GB | 2-3 GPUs | ~25-40 tok/s |
 | **MiniMax M2.5** *(SWE-Bench 80.2%)* | Q2-Q4 | ~60-80 GB | 2-3 GPUs | ~25-40 tok/s |
 | **Kimi K2.5** *(1T params, 32B active, #1 HLE)* | Q2 | ~80-100 GB | 3-4 GPUs | ~15-25 tok/s |
-| GLM-5 *(#1 Chatbot Arena ELO 1451)* | Q2-Q4 | ~60-100 GB | 2-4 GPUs | ~15-30 tok/s |
+| GLM-5.1 *(reasoning, #1 Intelligence Index, released April 7 2026)* | Q2-Q4 | ~60-100 GB | 2-4 GPUs | ~15-30 tok/s |
 | DeepSeek-V3 full (671B) | Q4 | ~200 GB | Partial CPU offload | ~8-15 tok/s |
 | WanVideo 2.2 14B | FP8 | ~40 GB | 1 dedicated GPU | see video section |
 | LTX Video 2.3 22B | FP8 | ~32 GB | 1 dedicated GPU | see video section |
