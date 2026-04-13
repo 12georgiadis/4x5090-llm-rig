@@ -108,7 +108,7 @@ Result: API costs drop by 80-90% vs. routing everything to Claude/GPT, while mai
 | **Motherboard** | ASUS ProArt X870E-CREATOR WIFI | 1 | €549.95 | €549.95 |
 | **RAM** | G.Skill Flare X5 Low Profile 96 GB (2×48 GB) DDR5-6000 CL30 | 2 | €1,299.95 | €2,599.90 |
 | **GPU** | MSI GeForce RTX 5090 32G VANGUARD SOC | 4 | ~€4,100* | ~€16,400* |
-| **Storage** | Samsung 9100 PRO 8 TB M.2 NVMe PCIe 5.0 | 2 | €1,249.95 | €2,499.90 |
+| **Storage** | Samsung 9100 PRO 8 TB M.2 NVMe PCIe 5.0 | 1 | €1,249.95 | €1,249.95 |
 | **CPU Cooler** | Noctua NH-D15 Chromax Black | 1 | €149.95 | €149.95 |
 | **AIO (spare)** | Cooler Master MasterLiquid 240 Core II ARGB | 1 | €79.95 | €79.95 |
 | **Fan** | Noctua NF-A12x25 PWM chromax.black.swap | 1 | €49.96 | €49.96 |
@@ -127,9 +127,9 @@ Result: API costs drop by 80-90% vs. routing everything to Claude/GPT, while mai
 
 | Category | Cost |
 |----------|------|
-| Components (new, TTC) | ~€22,430 |
+| Components (new, TTC) | ~€21,180 |
 | Additional parts (risers, fans, cables) | ~€410 |
-| **Total** | **~€22,840** |
+| **Total** | **~€21,590** |
 
 *GPU prices are volatile — the RTX 5090 launched at ~€2,699 in November 2025 and has risen to €4,000-4,300 street price due to sustained demand. Prices may shift significantly over the next 6-12 months.*
 
@@ -548,20 +548,20 @@ Key features: 40+ built-in tools, subagents for parallel workstreams, session me
 
 ### What Can 128 GB VRAM Run?
 
-> Models change faster than hardware. Table reflects **April 2026** — check [lmarena.ai](https://lmarena.ai) for the current leaderboard.
+> Models change faster than hardware. This table reflects **April 2026**. For the current leaderboard, check [openrouter.ai/rankings](https://openrouter.ai/rankings) and [lmarena.ai](https://lmarena.ai).
 
 | Model | Quantization | VRAM | Fits? | tok/s (TP across 4 GPUs) |
 |-------|-------------|------|-------|--------------------------|
-| Any 7-14B (Gemma 4 9B, Qwen3 8B, DS-R1-7B…) | Q4-BF16 | 4-16 GB | 1 GPU, fast | 100-200+ tok/s |
-| Qwen3 32B | Q4_K_M | ~18 GB | 1 GPU | ~51 tok/s (single) |
-| Qwen3 32B | BF16 | ~64 GB | 2 GPUs | ~30-35 tok/s |
+| Any 7-14B (Qwen3 8B, Gemma 4 9B, DS-R1-7B…) | Q4-BF16 | 4-16 GB | 1 GPU, fast | 100-200+ tok/s |
+| **Qwen3.6 Plus** *(#1 OpenRouter usage April 2026)* | Q4_K_M | ~18-36 GB | 1-2 GPUs | ~50-80 tok/s |
+| Qwen3 32B dense | Q4_K_M | ~18 GB | 1 GPU | ~51 tok/s (single) |
 | Qwen3 30B A3B MoE | Q4 | ~18 GB | 1 GPU | ~110 tok/s (single) |
-| Gemma 4 27B | Q4 | ~15 GB | 1 GPU | ~60 tok/s (single) |
-| DeepSeek-R1 distill 32B | Q4 | ~18 GB | 1 GPU | ~50 tok/s (single) |
-| DeepSeek-V4 distill ~33B *(late April 2026)* | Q4 | ~18 GB | 1 GPU | ~50 tok/s (estimated) |
-| Kimi K2.5 / GLM-4.7 / MiniMax M2.5 (200B+ MoE) | Q2-Q4 | 60-100 GB | 2-4 GPUs | ~20-40 tok/s |
-| **Llama 4 Scout** (109B MoE, 17B active) | Q4 | ~55 GB | 2 GPUs | ~60-80 tok/s |
-| **Llama 4 Maverick** (400B MoE, 17B active) | Q4 | ~200 GB | Partial CPU offload | ~8-15 tok/s |
+| DeepSeek V3.2 *(#2 OpenRouter)* | Q4 | ~18 GB (distill) | 1 GPU | ~50 tok/s (single) |
+| DeepSeek-V4 distill ~33B *(late April 2026, Apache 2.0)* | Q4 | ~18 GB | 1 GPU | ~50 tok/s (estimated) |
+| **MiniMax M2.7** *(SWE-Pro 56.2%, agentic SOTA)* | Q2-Q4 | ~60-80 GB | 2-3 GPUs | ~25-40 tok/s |
+| **MiniMax M2.5** *(SWE-Bench 80.2%)* | Q2-Q4 | ~60-80 GB | 2-3 GPUs | ~25-40 tok/s |
+| **Kimi K2.5** *(1T params, 32B active, #1 HLE)* | Q2 | ~80-100 GB | 3-4 GPUs | ~15-25 tok/s |
+| GLM-5 *(#1 Chatbot Arena ELO 1451)* | Q2-Q4 | ~60-100 GB | 2-4 GPUs | ~15-30 tok/s |
 | DeepSeek-V3 full (671B) | Q4 | ~200 GB | Partial CPU offload | ~8-15 tok/s |
 | WanVideo 2.2 14B | FP8 | ~40 GB | 1 dedicated GPU | see video section |
 | LTX Video 2.3 22B | FP8 | ~32 GB | 1 dedicated GPU | see video section |
@@ -579,7 +579,7 @@ The sweet spot is **70B Q5-Q8** models — they run entirely in VRAM across 2-4 
 | Model | Type | VRAM (FP8/quant) | Notes |
 |-------|------|-----------------|-------|
 | Flux.2 Dev/Schnell | Image | ~12-16 GB | NVFP4 = 3× faster than FP16 on 5090 |
-| Stable Diffusion 3.5 | Image | ~10-14 GB | Good for high-res, less VRAM than Flux.2 |
+| Flux.2 Pro | Image | ~8-12 GB | Faster Flux variant, step-distilled |
 | WanVideo 2.2 (14B) | Video | ~40 GB FP8, ~20 GB (720p) | Best open-source video motion quality |
 | WanVideo 2.2 (5B) | Video | ~8-16 GB | Faster, lighter, still good |
 | LTX Video 2.3 (22B) | Video + Audio | ~32 GB+ (official), ~12-24 GB FP8 | Generates audio + video simultaneously |
@@ -884,6 +884,15 @@ The most legitimate alternative for one specific use case: running 405B models i
   - At ~€5,999 you get one machine with no expansion path
 
 *Verdict: right choice if your entire workflow is text inference via MLX and you need the largest possible context in silence. Wrong choice if any part of your workflow touches ComfyUI, Flux.2, LTX-2, or standard PyTorch.*
+
+**M5 Ultra — coming mid-2026 (WWDC estimate):**
+Apple skipped M4 Ultra entirely (canceled). The next Mac Studio will ship M5 Ultra with:
+- **80 GPU cores**, up to **256 GB unified memory**, **~1,100 GB/s bandwidth**
+- MLX-only (no CUDA) — same limitation as current Apple Silicon
+- Estimated price: ~€6,000-8,000
+- At 1,100 GB/s and 256 GB: 70B inference would approach ~50-60 tok/s, and 405B+ models would fit comfortably
+
+The M5 Ultra is the only upcoming single-machine alternative that approaches the 4×5090 rig's VRAM capacity — but at 1/4 the cost and 1/50 the power draw. If you don't need CUDA (ComfyUI/Flux.2/Wan 2.2), the M5 Ultra Mac Studio will be compelling when it ships.
 
 **Threadripper PRO 7000 WRX90 + 4× RTX 5090**
 
