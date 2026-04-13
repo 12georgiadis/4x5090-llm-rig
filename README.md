@@ -23,7 +23,7 @@ The answer: **4x RTX 5090** (128 GB total VRAM) on an open-air frame, built incr
 | **CPU** | AMD Ryzen 9 9950X (4.3 / 5.7 GHz) | 1 | €649.95 | €649.95 |
 | **Motherboard** | ASUS ProArt X870E-CREATOR WIFI | 1 | €549.95 | €549.95 |
 | **RAM** | G.Skill Flare X5 Low Profile 96 GB (2×48 GB) DDR5-6000 CL30 | 2 | €1,299.95 | €2,599.90 |
-| **GPU** | MSI GeForce RTX 5090 32G VANGUARD SOC | 4 | ~€2,200* | ~€8,800* |
+| **GPU** | MSI GeForce RTX 5090 32G VANGUARD SOC | 4 | ~€4,100* | ~€16,400* |
 | **Storage** | Samsung 9100 PRO 8 TB M.2 NVMe PCIe 5.0 | 2 | €1,249.95 | €2,499.90 |
 | **CPU Cooler** | Noctua NH-D15 Chromax Black | 1 | €149.95 | €149.95 |
 | **AIO (spare)** | Cooler Master MasterLiquid 240 Core II ARGB | 1 | €79.95 | €79.95 |
@@ -37,15 +37,17 @@ The answer: **4x RTX 5090** (128 GB total VRAM) on an open-air frame, built incr
 | **Fans (extra)** | Arctic P12/P14 PWM (for GPU airflow) | 6 | ~€10 | ~€60 |
 | **Breakout boards** | HP PSU breakout + 16-pin cables | 2 | ~€35 | ~€70 |
 
-**\*GPU prices as of mid-2026, subject to stock/availability.**
+**\*GPU street prices as of April 2026 (idealo.fr ~€4,000-4,300; MSRP was €2,699 at launch Nov 2025 but supply has not caught up with demand). Check [idealo.fr](https://www.idealo.fr/prix/205775927/msi-geforce-rtx-5090.html) for current pricing.**
 
 ### Total Estimated Cost
 
 | Category | Cost |
 |----------|------|
-| Components (new, TTC) | ~€15,830 |
+| Components (new, TTC) | ~€22,430 |
 | Additional parts (risers, fans, cables) | ~€410 |
-| **Total** | **~€16,240** |
+| **Total** | **~€22,840** |
+
+*GPU prices are volatile — the RTX 5090 launched at ~€2,699 in November 2025 and has risen to €4,000-4,300 street price due to sustained demand. Prices may shift significantly over the next 6-12 months.*
 
 Already owning the server PSUs, open-air frame, and octopus PSU saved ~€260.
 
@@ -415,21 +417,50 @@ With 4×48 GB (192 GB total), all four DIMM slots are populated:
 ### Core Inference
 
 ```bash
-# Ollama (easiest to start with)
-ollama serve  # starts server
-ollama run llama3.1:70b-instruct-q4_K_M  # fits in ~40 GB VRAM
+# Ollama (quickest to start — auto-detects all 4 GPUs)
+ollama serve
+ollama run qwen3:32b          # fits in 1 GPU
+ollama run qwen3:72b-q4_K_M   # spans 2-3 GPUs automatically
 
-# vLLM (better for serving + tensor parallelism)
-vllm serve meta-llama/Llama-3.1-70B-Instruct \
+# vLLM (best for concurrent requests + tensor parallelism)
+vllm serve NousResearch/Hermes-3-Llama-3.1-70B-Instruct \
   --tensor-parallel-size 4 \
   --gpu-memory-utilization 0.90
 
-# llama.cpp (best flexibility, GGUF format)
+# llama.cpp (best flexibility, GGUF format, partial CPU offload)
 ./llama-server \
-  -m models/llama-3.1-70b-Q5_K_M.gguf \
+  -m models/qwen3-70b-Q5_K_M.gguf \
   --n-gpu-layers 99 \
-  --tensor-split 25,25,25,25  # even split across 4 GPUs
+  --tensor-split 30,30,20,20  # compensate AM5 lane asymmetry
 ```
+
+### LiteLLM — Unified API Proxy (essential for agent frameworks)
+
+LiteLLM exposes all your local models behind a single OpenAI-compatible endpoint.
+Any agent framework (Hermes Agent, Claude Code, LangChain, CrewAI) talks to one URL.
+
+```bash
+pip install litellm
+litellm --model ollama/qwen3:32b --port 4000
+# or point at vLLM:
+litellm --model openai/qwen3-70b --api-base http://localhost:8000/v1 --port 4000
+# now any app hits http://localhost:4000 regardless of backend
+```
+
+### Hermes Agent — Agentic Layer
+
+[Hermes Agent](https://github.com/NousResearch/hermes-agent) (NousResearch, released Feb 2026) is an autonomous agent framework, not just a model. It runs on top of any local LLM backend and handles tool calling, memory, and multi-step reasoning:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash
+# point it at your local vLLM/Ollama via LiteLLM:
+hermes config set provider openai
+hermes config set base_url http://localhost:4000
+hermes config set model qwen3:32b
+hermes run "analyze all images in ~/shots/ and create a shot list"
+```
+
+Key features: 40+ built-in tools, subagents for parallel workstreams, session memory, 30-min socket timeout for large-context local inference. The Hermes 3 70B model underneath is fine-tuned for structured function calling (`<tool_call>` / `<tool_response>` format) — more reliable than base Llama for agent tasks.
 
 ### What Can 128 GB VRAM Run?
 
@@ -444,6 +475,7 @@ vllm serve meta-llama/Llama-3.1-70B-Instruct \
 | Llama 3.3 70B | Q8_0 | ~75 GB | Yes (3 GPUs) | ~50-70 tok/s (TP×4) |
 | Gemma 4 27B | Q4 | ~15 GB | Yes (1 GPU) | ~60 tok/s |
 | DeepSeek-V3 distill 32B | Q4 | ~18 GB | Yes (1 GPU) | ~50 tok/s |
+| DeepSeek-V4 distill ~33B *(late April 2026)* | Q4 | ~18 GB | Yes (1 GPU) | ~50 tok/s (estimated) |
 | DeepSeek-V3 full | Q4 | ~200 GB | Partial (CPU offload) | ~8-15 tok/s |
 | Llama 3.1 405B | Q4_K_M | ~230 GB | Partial (CPU offload) | ~10-15 tok/s |
 | LTX Video 2 | — | ~27-32 GB | Yes (1 dedicated GPU) | see video section |
@@ -679,6 +711,41 @@ The proper professional platform. Covered in detail in the Architecture section.
 - **Marginal for inference** — the bottleneck is within-GPU GDDR7 bandwidth (1.8 TB/s per card), not cross-GPU PCIe communication
 
 *Verdict: the right platform for a production training rig or commercial AI server. Overkill for inference + LoRA fine-tuning. The €3,500 saved funds the 4th 5090.*
+
+### NVIDIA DGX Spark ($4,699) — The Most Common Misconception
+
+The DGX Spark is NVIDIA's consumer AI supercomputer: 128GB unified memory, full CUDA stack, compact desktop form factor. On paper it looks like a direct competitor.
+
+In practice, for 70B+ inference, it is **not**:
+
+- **2.7 tokens/second decode on Llama 70B** — this is the published benchmark from LMSYS (October 2025). The 128GB unified memory runs at ~273 GB/s. That's the bottleneck. Same VRAM as the 4×5090 rig, 30× slower on 70B decode
+- Fine-tuning via QLoRA peaks at 5,079 tok/s for Llama 3.3 70B — impressive, but the 4×5090 rig has discrete VRAM with full CUDA training support
+- For **small models** (8B-14B), the DGX Spark shines: compact, silent, zero setup, good throughput at its target tier
+- **Two DGX Sparks linked** (~$9,400) run Qwen3-235B at 11.7 tok/s — same ballpark as the 4×5090 at a higher cost
+
+*Verdict: right machine for a compact always-on 8-30B inference node. Wrong machine for 70B+ at interactive speeds. The unified memory bandwidth ceiling is fundamental, not patchable.*
+
+**Benchmark comparison:**
+
+| Config | 70B Q4 tok/s | Memory BW | Cost |
+|--------|-------------|-----------|------|
+| DGX Spark | ~2.7 tok/s | 273 GB/s unified | $4,699 |
+| Mac Studio M4 Ultra | ~30-40 tok/s | 819 GB/s unified | ~€5,999 |
+| **4× RTX 5090 (this build)** | **~80-120 tok/s** | **1,792 GB/s × 4** | **~€22,800** |
+
+### NVIDIA RTX Pro 6000 Blackwell (96GB, ~€8,000-9,000) — One Card to Rule Them All?
+
+The RTX Pro 6000 Blackwell is a professional workstation GPU with 96GB GDDR7. It fits 70B FP8 on a single card with 26GB left for KV cache.
+
+- **What it does well:** 70B FP8 on one card, ~8,400 tok/s on 30B AWQ (near 4×RTX 4090 on those workloads), no multi-GPU complexity, ECC memory for long unattended runs, 600W for one slot
+- **Why not for this build:**
+  - €8,000-9,000 for one card = can't afford 4 of them (€32,000+)
+  - 96GB < 128GB — can't run 70B FP16 or comfortable 405B
+  - One card = no LTX Video 2 + Qwen3 70B simultaneously
+  - **No NVLink** — multi-card configs still face PCIe bottlenecks like consumer cards
+  - 600W per card × 4 = 2,400W before system overhead — same thermal challenge as 4× 5090, at 4× the GPU cost
+
+*Verdict: compelling for a one-card workstation where multi-GPU complexity is undesirable. Not the right choice for a dedicated multi-workload inference + ComfyUI server.*
 
 ### The Decision Tree
 
