@@ -635,6 +635,68 @@ curl http://<rig-tailscale-ip>:11434/api/generate \
 
 ---
 
+---
+
+## Portability — Taking the Rig On Location
+
+An open-air mining frame is not designed to travel. But it can, with the right approach.
+
+### Weight Reality Check
+
+| Component | Approx. weight |
+|-----------|---------------|
+| 4× RTX 5090 Vanguard SOC | ~4× 1.8 kg = ~7.2 kg |
+| Open-air frame (aluminum/steel) | ~3-5 kg |
+| Motherboard + CPU + cooler | ~2 kg |
+| 2× HP server PSUs | ~4 kg |
+| Corsair SFX PSU | ~0.8 kg |
+| RAM + SSDs + cables | ~1 kg |
+| **Total** | **~18-20 kg** |
+
+Not luggage. Transport, not travel.
+
+### Option A — Rack Case (Most Professional)
+
+Replace the open-air frame with a **4U rackmount chassis** (Tupavco TP1846 or Hydra III), then fit it into a **rackmount Pelican/SKB transport case** (SKB R914U or equivalent). This is the pro audio/video approach — same system used for live broadcast GPU servers.
+
+- Pros: fully enclosed, protected, stackable, airline-checkable as oversized freight
+- Cons: ~€400-600 for the rack + case, slightly worse airflow than open-air
+- The GPU cards still need individual padding/securing inside the 4U chassis
+
+### Option B — Disassemble + Carry Separately
+
+For occasional transport (Paris → LA, residencies):
+1. Remove 4 GPUs → each in anti-static bag + foam sleeve → in carry-on or padded Pelican 1510
+2. Ship the frame + motherboard + PSUs (non-fragile, can ship as freight)
+3. Reassemble on location (~45 min)
+
+This is how most filmmakers with GPU rigs actually travel. The GPUs are the irreplaceable/expensive parts — they go with you. The rest ships.
+
+### Option C — Remote Access (Best Option for Most Trips)
+
+Leave the rig in Paris. Access it via **Tailscale** from anywhere with internet:
+
+```bash
+# From anywhere: ssh into the rig, run inference remotely
+ssh user@<rig-tailscale-ip>
+# or hit the LiteLLM endpoint directly:
+curl http://<rig-tailscale-ip>:4000/v1/chat/completions ...
+```
+
+Most production use cases don't require physical proximity. The rig serves the whole network. For a shoot in LA, the Paris rig handles agent tasks and model inference overnight — you wake up with results. This is the real advantage of the Tailscale integration.
+
+### Power Compatibility (France ↔ USA / International)
+
+| PSU | Input voltage | International use |
+|-----|---------------|------------------|
+| Corsair SF1000 | 100-240V auto | Works everywhere |
+| HP 1200W Server PSU | 100-240V auto | Works everywhere |
+| Octopus breakout PSU | Typically 110-240V — **check label** | May need transformer |
+
+The HP server PSUs and the Corsair SF are universal. Verify the AliExpress octopus PSU before plugging in abroad.
+
+---
+
 ## Remaining Budget (What I Still Need to Buy)
 
 Already owned: open-air frame, HP server PSUs ×2, octopus PSU, Corsair SF1000, extra Noctua fans.
